@@ -14,7 +14,7 @@ if __name__ == '__main__':
 	var_range = [0.0, 2*3.141592]
 	par_ranges_of_input_func = [[0.0, 0.5], [0.0, 3.141592]]
 
-	code = find_root_solver([function, der], 'x-a1*sin(x)-a2', par_ranges_of_input_func, var_range)
+	code = find_root_solver([function, der], 'x-a1*sin(x)-a2', par_ranges_of_input_func, var_range, "es")
 
 	print(code)
 

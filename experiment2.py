@@ -14,7 +14,7 @@ if __name__ == '__main__':
 	var_range = [0.0, 1.0]
 	par_ranges_of_input_func = [[-1.0, 0.0], [-1.0, 0.0] ,[pi, 2*pi]]
 
-	code = find_root_solver([function, der], 'acos(1.0/ ( x/a1 - 1.0))+acos(1.0/ ( x/a2 - 1.0))-a3', par_ranges_of_input_func, var_range)
+	code = find_root_solver([function, der], 'acos(1.0/ ( x/a1 - 1.0))+acos(1.0/ ( x/a2 - 1.0))-a3', par_ranges_of_input_func, var_range, "es")
 
 	print(code)
 

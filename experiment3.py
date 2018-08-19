@@ -21,12 +21,11 @@ if __name__ == '__main__':
 	der = lambda x, P: 2*x[0]
 
 	var_range = [0.0, 1.0]
-	par_ranges_of_input_func = [[0.0, 10.0]]
+	par_ranges_of_input_func = [[0.0, 1.0]]
 	
 
-	code = find_root_solver([function, der], 'x*x-a1', par_ranges_of_input_func, var_range)
+	code = find_root_solver([function, der], 'x*x-a1', par_ranges_of_input_func, var_range, "es")
 
 	print(code)
 
 	print("Total time (sec):", time() - start_time )
-	print(3)

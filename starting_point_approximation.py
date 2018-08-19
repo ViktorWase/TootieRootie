@@ -17,7 +17,7 @@ else:
 
 from random import random, seed
 
-from simulated_anneling import multistart_sa
+from simulated_anneling import multistart_opt
 from cgp import Operation, CGP
 from gauss_newton import gauss_newton
 #from non_linear_curve_fitting import gradient_descent
@@ -67,7 +67,7 @@ def jacobian_func(f_vals, pnts, beta, func):
 			jacobian[i][j] = der * tmp
 	return jacobian
 
-def starting_point_approximation_symbolic_regression(f_vals, pnts, nr_of_parameters=3, max_iter=1000, multi_starts=5, nr_of_nodes=15, max_time=None):
+def starting_point_approximation_symbolic_regression(f_vals, pnts, optimizer, nr_of_parameters=3, max_iter=1000, multi_starts=5, nr_of_nodes=15, max_time=None):
 	"""
 	The purpose of this function is to find an analytical function 
 	f such that f(pnt) is close to f_val for the pnt is pnts and 
@@ -188,19 +188,20 @@ def starting_point_approximation_symbolic_regression(f_vals, pnts, nr_of_paramet
 			return (sqrt(sum(r*r for r in res) / float(len(res))), pars)
 
 	# Run the mutistart simulated anneling optimization algorithm.
-	(cgp, best_err, best_pars) = multistart_sa(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_iter=max_iter, multi_starts=multi_starts, nr_of_pars=nr_of_parameters, max_time=max_time)
+	(cgp, best_err, best_pars) = multistart_opt(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, optimizer, max_iter=max_iter, multi_starts=multi_starts, nr_of_pars=nr_of_parameters, max_time=max_time)
 	func = lambda x: cgp.eval(x, parameters=best_pars) # TODO: This only works if ALL PARAMETERS ARE USED
 
 	return (cgp, best_err, best_pars)
 
-def starting_point_approximation(func, nr_of_parameters, parameter_ranges, max_iter=1000, multi_starts=2, nr_of_samples_per_parameter=25, nr_of_parameters_in_cgp=3, max_time=None):
+def starting_point_approximation(func, nr_of_parameters, parameter_ranges, optimizer, max_iter=1000, multi_starts=2, nr_of_samples_per_parameter=25, nr_of_parameters_in_cgp=3, max_time=None, symbolic_der=None):
 
 	assert nr_of_samples_per_parameter > 1
 	assert nr_of_parameters >= 0
 	if nr_of_parameters == 0:
-		# TODO: Fix this case! I guess we don't really need an approximation 
+		# I guess we don't really need an approximation 
 		# function for the starting point in this case. I mean, there will 
 		# only be one value for the root.
+		print("There are no parameters in the input function! Then there is no need for this program.")
 		assert False
 	else:
 
@@ -224,16 +225,18 @@ def starting_point_approximation(func, nr_of_parameters, parameter_ranges, max_i
 				parameter_samples[i][d] = random()*(parameter_ranges[d][1]-parameter_ranges[d][0])+parameter_ranges[d][0]
 
 
-		# Let's get the derivative as well. TODO: this shouldn't have to be numerical.
-		func_der = lambda x, a: (func([x[0]+1.0e-8] , a) - func([x[0]],a))/1.0e-8 # TODO: Do this symbolically, not numerically.
-
+		# Let's get the derivative as well. 
+		if symbolic_der == None:
+			func_der = lambda x, a: (func([x[0]+1.0e-11] , a) - func([x[0]],a))/1.0e-11
+		else:
+			func_der = symbolic_der
 		# Step 1 
 		# For each point, find the x val that is the (or a) root.
 		# Do this using Newton-Raphson.
 		root_samples_and_errors = [root_finders(func, func_der, parameter_samples[i]) for i in range(nr_of_samples)]
 		
 		# Remove all points that didn't converge
-		converge_thresh = 1.0e-5
+		converge_thresh = 1.0e-8
 		remove_idxs = []
 		counter = 0
 		for i in range(nr_of_samples):
@@ -260,7 +263,7 @@ def starting_point_approximation(func, nr_of_parameters, parameter_ranges, max_i
 		# Step 2
 		# Run a symbolic regression to find a good approximation for the root.
 		# This is used as a starting point.
-		(cgp, best_err, parameters) = starting_point_approximation_symbolic_regression(root_samples, parameter_samples, max_iter=max_iter, nr_of_parameters=nr_of_parameters_in_cgp, max_time=max_time)
+		(cgp, best_err, parameters) = starting_point_approximation_symbolic_regression(root_samples, parameter_samples, optimizer, max_iter=max_iter, nr_of_parameters=nr_of_parameters_in_cgp, max_time=max_time)
 
 		# Step 2 and a half
 		# The symbolic regression (tries to) ignore all constant solutions, so those should be checked as well.
@@ -280,24 +283,3 @@ def starting_point_approximation(func, nr_of_parameters, parameter_ranges, max_i
 			best_err = error_from_mean
 
 		return (cgp, best_err, parameters)
-
-if __name__ == '__main__':
-	from math import sin, pi
-	seed(0)
-	function = lambda x, beta: x[0] - beta[0]*sin(x[0])-beta[1]
-
-	(cgp, err, parameters) = starting_point_approximation(function, 2, [[0.0, 1.0], [0.0, 2*pi]])
-	is_par_used = cgp.which_parameters_are_used()
-	print("The error is", err, parameters, is_par_used)
-	assert sum(is_par_used) == len(parameters)
-
-	pars = [0.0 for _ in range(cgp.nr_of_parameters)]
-	assert len(parameters) == nr_of_pars_used
-
-	counter = 0
-	for i in range(cgp.nr_of_parameters):
-		if is_par_used[i]:
-			pars[i] = parameters[counter]
-			counter += 1
-
-	cgp.print_func(parameters=pars)

@@ -1,3 +1,7 @@
+from math import inf
+
+from newton_raphson import root_finders
+
 def get_all_possible_node_parts(prev_nodes, op_table):
 	node_parts = []
 	for op_nr in range(len(op_table)):
@@ -25,9 +29,9 @@ def update_pos(pos, all_node_parts):
 
 def get_all_genes_sub(dims, nr_of_used_nodes, op_table):
 	genes_sub = []
-	print("all node parts start")
+	#print("all node parts start")
 	all_node_parts = [get_all_possible_node_parts(dims+i, op_table) for i in range(nr_of_used_nodes+1)]
-	print("all node parts done")
+	#print("all node parts done")
 	pos = [0]*(nr_of_used_nodes+1)
 
 	old_last_pos = pos[-1]
@@ -47,7 +51,7 @@ def get_all_genes_sub(dims, nr_of_used_nodes, op_table):
 			break
 
 		if pos[-1] != old_last_pos:
-			print("here (in):", pos[-1], len(all_node_parts[-1]))
+			#print("here (in):", pos[-1], len(all_node_parts[-1]))
 			old_last_pos = pos[-1]
 
 	return genes_sub
@@ -110,9 +114,9 @@ def get_all_genes(dims, nr_of_nodes, direct_error_func_curry, root_samples, para
 
 	# And then the other ones
 	for node in range(nr_of_nodes):
-		print("Start")
+		#print("Start")
 		subs = get_all_genes_sub(dims, node, op_table)
-		print("mid")
+		#print("mid")
 		len_of_sub = len(subs[0])
 		remaining_len = gene_len-len_of_sub
 		assert remaining_len >= 0
@@ -128,32 +132,40 @@ def get_all_genes(dims, nr_of_nodes, direct_error_func_curry, root_samples, para
 						best_gene = list(subs[i])
 						print("best", err, "   progress:", float(i)/len(subs))
 				subs[i] = None
-				if i%50000 == 0:
-					print("here", node, nr_of_nodes)
-					print("itr", i, len(subs))
+				#if i%50000 == 0:
+				#	print("here", node, nr_of_nodes)
+				#	print("itr", float(i)/len(subs))
 			subs = None
-	return genes
+	return best_gene, best_err
 
-def full_search(input_function_and_derivatives, nr_of_parameters_in_inp, parameter_ranges, variable_range, nr_of_samples_per_inp_parameter=5, nr_of_nodes=3, nr_of_variable_samples=15):
+def full_search_part(start_func, root_samples, errors_samples, input_function_and_derivatives, nr_of_parameters_in_inp, dims, nr_of_nodes, parameter_in_inp_samples):
+	
+	# Add some default arguments to the error function
+	from operation_table import op_table
+	nr_of_funcs = len(op_table)
+
+	direct_error_func_curry = lambda true_root_vals, pnts, dims, cgp, nr_of_cgp_parameters, op_table: direct_error_func( start_func, input_function_and_derivatives, true_root_vals, pnts, dims, cgp, nr_of_cgp_parameters, op_table, nr_of_parameters_in_inp, nr_of_derivatives)
+
+	return get_all_genes(dims, nr_of_nodes, direct_error_func_curry, root_samples, parameter_in_inp_samples, nr_of_parameters_in_inp, 
+		op_table)
+
+def full_search(max_nr_of_nodes, start_func, input_function_and_derivatives, nr_of_parameters_in_inp, parameter_ranges, nr_of_samples_per_inp_parameter=15, nr_of_nodes=3, nr_of_variable_samples=15):
 	func = input_function_and_derivatives[0]
-
+      
 	# The dimensions of the cgp are x, the value of the given function and its derivatives, as well
 	# as the parameters of the input function.
 	dims = 1 + nr_of_derivatives+1+nr_of_parameters_in_inp
-	#parameter_ranges = [[0.0, 0.1], [0.0, 2*pi]]
-	#variable_range = [0.0, 2*pi]
+	dummy_range = [0, 1]
+	(ignore, parameter_in_inp_samples, nr_of_par_in_inp_samples) = get_parameter_pnts(nr_of_parameters_in_inp, parameter_ranges, dummy_range, nr_of_samples_per_inp_parameter, nr_of_variable_samples)
 
-	#nr_of_nodes = 3
-
-	#nr_of_samples_per_inp_parameter = 5
-	#nr_of_variable_samples = 15
-
-	(x_pnts, parameter_in_inp_samples, nr_of_par_in_inp_samples) = get_parameter_pnts(nr_of_parameters_in_inp, parameter_ranges, variable_range, nr_of_samples_per_inp_parameter, nr_of_variable_samples)
-
-	# Let's get the derivative as well. TODO: this shouldn't have to be numerical.
-	func_der = lambda x, a: (func([x[0]+1.0e-11] , a) - func([x[0]],a))/1.0e-11 # TODO: Do this symbolically, not numerically.
-	# Find the root values using Newton-Raphson. TODO: Add a bunch of root finders here to make sure that it converges.
-	root_samples_and_errors = [newton_raphson(func, func_der, parameter_in_inp_samples[i]) for i in range(nr_of_par_in_inp_samples)] # TODO: Change from NR to a lot of root solvers
+	# Let's get the derivative as well. 
+	# It's numerical if the 
+	if len(input_function_and_derivatives) >= 2:
+		func_der = input_function_and_derivatives[1]
+	else:
+		func_der = lambda x, a: (func([x[0]+1.0e-11] , a) - func([x[0]],a))/1.0e-11
+	# Find the root values using Newton-Raphson.
+	root_samples_and_errors = [root_finders(func, func_der, parameter_in_inp_samples[i]) for i in range(nr_of_par_in_inp_samples)]
 
 	# Remove all points that didn't converge
 	converge_thresh = 1.0e-8
@@ -169,18 +181,19 @@ def full_search(input_function_and_derivatives, nr_of_parameters_in_inp, paramet
 		counter += 1
 	root_samples = [tmp[0] for tmp in root_samples_and_errors]
 	errors_samples = [tmp[1] for tmp in root_samples_and_errors]
-	assert max(errors_samples) <= converge_thresh
+	assert max(errors_samples) <= converge_thresh	
 
-	# Add some default arguments to the error function
-	from operation_table import op_table
-	nr_of_funcs = len(op_table)
-	start_func = lambda pars: 0.0 # TODO: Find the start func instead
+	best_err = inf
+	best_gene = None
+	for nr_of_nodes in range(1, max_nr_of_nodes+1):
+		print("Nr of nodes:", nr_of_nodes)
+		gene, err = full_search_part(start_func, root_samples, errors_samples, input_function_and_derivatives, nr_of_parameters_in_inp, dims, nr_of_nodes, parameter_in_inp_samples)
 
-	direct_error_func_curry = lambda true_root_vals, pnts, dims, cgp, nr_of_cgp_parameters, op_table: direct_error_func( start_func, input_function_and_derivatives, true_root_vals, pnts, dims, cgp, nr_of_cgp_parameters, op_table, nr_of_parameters_in_inp, nr_of_derivatives)
-
-	print("Dims:", dims)
-	genes = get_all_genes(dims, nr_of_nodes, direct_error_func_curry, root_samples, parameter_in_inp_samples, 2, op_table)
-	print(len(genes))
+		if err < best_err:
+			best_err = err
+			best_gene = gene
+	assert best_gene != None
+	return best_gene, best_err
 
 if __name__ == '__main__':
 	from operation_table import op_table
@@ -196,31 +209,10 @@ if __name__ == '__main__':
 	nr_of_derivatives = 1
 	nr_of_parameters_in_inp = 2
 
-	var_range = [0.0, 2*3.141592]
 	par_ranges_of_input_func = [[0.0, 0.5], [0.0, 3.141592]]
 	input_function_and_derivatives = [function, der]
 
-	full_search(input_function_and_derivatives, nr_of_parameters_in_inp, par_ranges_of_input_func, var_range)
+	start_func = lambda x: 1.0e-5
 
-	
-	"""
+	full_search(2, start_func, input_function_and_derivatives, nr_of_parameters_in_inp, par_ranges_of_input_func, nr_of_samples_per_inp_parameter=15, nr_of_nodes=3, nr_of_variable_samples=15)
 
-	best_err = 1.0e20
-	n = len(genes)
-	for i in range(n):
-		gene = genes[0]
-		cgp = CGP(dims, op_table, gene)
-
-		(err, pars) = direct_error_func_curry( root_samples, parameter_in_inp_samples, dims, cgp, 2, op_table)
-		if err < best_err:
-			print(err, i, len(genes))
-			best_err = err
-
-		if i%3000 == 0:
-			print("Progress", round(float(i)/len(genes) * 100, 3), "%")
-
-		genes.pop(0)
-	print("Best err", best_err)
-
-
-	"""

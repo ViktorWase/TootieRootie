@@ -7,14 +7,12 @@ if version_info >= (3,0):
 else:
 	inf = 1.0e25
 
-
 from types import *
 
 from cgp import Operation
-from simulated_anneling import multistart_sa
+from simulated_anneling import multistart_opt
 from non_linear_curve_fitting import combo_curve_fitting
-from newton_raphson import newton_raphson
-#from global_optimizer import differential_evolution
+from newton_raphson import root_finders
 from nealder_mead import nealder_mead
 
 def numerical_derivative(func, x, beta, der_number=1, h=1.0e-10):
@@ -218,7 +216,6 @@ def direct_error_func(first_approx, input_function_and_derivatives, true_root_va
 		print("not numerical")
 	else:
 		p = cgp.nr_of_parameters
-		assert False
 
 		def objective_func(pars):
 			assert p == len(pars)
@@ -237,7 +234,7 @@ def calc_function_and_derivatives(func, x_pnt, parameter_in_inp_sample, nr_of_de
 		out.append(numerical_derivative(func, x_pnt, parameter_in_inp_sample, der_number=i))
 	return out
 
-def direct_iterative_function_finder(start_func, input_function_and_derivatives, nr_of_parameters_in_inp, parameter_ranges, variable_range, nr_of_derivatives=1, max_iter=1000, multi_starts=25, nr_of_samples_per_inp_parameter=8, nr_of_variable_samples=15, nr_of_cgp_pars=2, max_time=None):
+def direct_iterative_function_finder(start_func, input_function_and_derivatives, nr_of_parameters_in_inp, parameter_ranges, variable_range, optimizer, nr_of_derivatives=1, max_iter=1000, multi_starts=25, nr_of_samples_per_inp_parameter=8, nr_of_variable_samples=15, nr_of_cgp_pars=2, max_time=None):
 	"""
 	A root finder can be split into two parts: a function for x_0, and a function for x_{i+1} given x_i. This 
 	method uses symbolic regression (read optimization) to find the latter.
@@ -261,10 +258,13 @@ def direct_iterative_function_finder(start_func, input_function_and_derivatives,
 
 	(x_pnts, parameter_in_inp_samples, nr_of_par_in_inp_samples) = get_parameter_pnts(nr_of_parameters_in_inp, parameter_ranges, variable_range, nr_of_samples_per_inp_parameter, nr_of_variable_samples)
 
-	# Let's get the derivative as well. TODO: this shouldn't have to be numerical.
-	func_der = lambda x, a: (func([x[0]+1.0e-8] , a) - func([x[0]],a))/1.0e-8 # TODO: Do this symbolically, not numerically.
+	# Let's get the derivative as well. Symbolically if we have it, otherwise numerically.
+	if len(input_function_and_derivatives)>=2:
+		func_der = input_function_and_derivatives[1]
+	else:
+		func_der = lambda x, a: (func([x[0]+1.0e-11] , a) - func([x[0]],a))/1.0e-11 # TODO: Do this symbolically, not numerically.
 	# Find the root values using Newton-Raphson. TODO: Add a bunch of root finders here to make sure that it converges.
-	root_samples_and_errors = [newton_raphson(func, func_der, parameter_in_inp_samples[i]) for i in range(nr_of_par_in_inp_samples)]
+	root_samples_and_errors = [root_finders(func, func_der, parameter_in_inp_samples[i]) for i in range(nr_of_par_in_inp_samples)]
 
 	# Remove all points that didn't converge
 	converge_thresh = 1.0e-8
@@ -289,19 +289,4 @@ def direct_iterative_function_finder(start_func, input_function_and_derivatives,
 	direct_error_func_curry = lambda true_root_vals, pnts, dims, cgp, nr_of_cgp_parameters, op_table: direct_error_func( start_func, input_function_and_derivatives, true_root_vals, pnts, dims, cgp, nr_of_cgp_parameters, op_table, nr_of_parameters_in_inp, nr_of_derivatives)
 
 	# Start the optimization
-	return multistart_sa(root_samples, parameter_in_inp_samples, dims, nr_of_funcs, nr_of_nodes, direct_error_func_curry, op_table, nr_of_pars=nr_of_cgp_pars, max_iter=max_iter, multi_starts=multi_starts, max_time=max_time)
-
-if __name__ == '__main__':
-	from math import sin, pi, cos
-	from random import seed
-	seed(0)
-	func = lambda x, beta: x[0] - beta[0]*sin(x[0])-beta[1]
-	der = lambda x, beta: 1.0-beta[0]*cos(x[0])
-	der_der = lambda x, beta: beta[0]*sin(x[0])
-	#iterative_function_finder(func, 2, [[0.0, 1.0], [0.0, 2*pi]], [0.0, 2*pi])
-
-	start_func = lambda beta: beta[1] + 0.6*beta[0]
-
-	(best_sol, best_err, best_pars) = direct_iterative_function_finder(start_func, [func, der, der_der], 2, [[0.0, 0.1], [0.0, 2*pi]], [0.0, 2*pi], max_iter=1000, nr_of_derivatives=2)
-	best_sol.print_function()
-	print("Err:", best_err)
+	return multistart_opt(root_samples, parameter_in_inp_samples, dims, nr_of_funcs, nr_of_nodes, direct_error_func_curry, op_table, optimizer, nr_of_pars=nr_of_cgp_pars, max_iter=max_iter, multi_starts=multi_starts, max_time=max_time)

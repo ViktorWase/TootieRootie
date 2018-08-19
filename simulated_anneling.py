@@ -240,9 +240,9 @@ def es(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_i
 
 	return (best_cgp, best_error, best_pars)
 
-def multistart_sa(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_iter=1000, multi_starts=10, nr_of_pars=0, max_time=None):
+def multistart_opt(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, optimizer, max_iter=1000, multi_starts=10, nr_of_pars=0, max_time=None):
 	"""
-	A multistart version of simulated anneling. Returns the best found solution.
+	A multistart version of simulated anneling/es. Returns the best found solution.
 	"""
 	best_err = inf
 	best_sol = None
@@ -257,14 +257,19 @@ def multistart_sa(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_t
 	remaining_time = True
 
 	while True:
-		print("STARTING NEW:",counter+1,"of",multi_starts )
+		print("STARTING NEW:",counter+1,"of", multi_starts )
 
 		if max_time != None:
 			passed_time = time() - start_time
 			remaining_time = max_time - passed_time
+		if optimizer=="sa":
+			(sol, err, pars) = sa(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_iter=max_iter, nr_of_pars=nr_of_pars, remaining_time=remaining_time)
+		elif optimizer=="es":
+			(sol, err, pars) = es(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_iter=max_iter, nr_of_pars=nr_of_pars, remaining_time=remaining_time)
+		else:
+			print(optimizer, "is not a used optimizer.")
+			assert False
 
-		#(sol, err, pars) = sa(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_iter=max_iter, nr_of_pars=nr_of_pars, remaining_time=remaining_time)
-		(sol, err, pars) = es(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_iter=max_iter, nr_of_pars=nr_of_pars, remaining_time=remaining_time)
 		if err < best_err:
 			best_err = err
 			best_sol = sol
@@ -314,4 +319,4 @@ if __name__ == '__main__':
 
 
 	nr_of_nodes = 15
-	print(multistart_sa(outputs, inputs, len(inputs[0]), len(op_table), nr_of_nodes, err_func, op_table))
+	print(multistart_opt(outputs, inputs, len(inputs[0]), len(op_table), nr_of_nodes, err_func, op_table))
