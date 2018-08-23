@@ -6,6 +6,20 @@ numerical parameters/constants in the function) is Gauss-Newton, and it is in
 another file.
 """
 
+def write_2_file(pars, current_error, optimizer, cgp_str): # TODO: This function exists in index. Put it in a separate file and use for both.
+	import datetime
+	dt_string = str(datetime.datetime.now())
+	import __main__
+	file_name = __main__.__file__
+	file_name = file_name[:-3]+".txt" # remove .py, add .txt
+	s = ""
+	for p in pars:
+		s += str(p)+","
+	s+=";"+str(current_error)+";"+optimizer+";"+cgp_str+";"+dt_string+"\n"
+	f = open(file_name, "a")
+	f.write(s)
+
+
 from copy import copy, deepcopy
 from random import random, randint
 from time import time
@@ -172,6 +186,7 @@ def sa(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_i
 
 			if new_error < best_error:
 				print("best yet:", new_error)
+				write_2_file(new_pars, current_error, 'sa',current_cgp.convert2str(parameters=new_pars))
 				new_cgp.print_function(parameters=new_pars)
 				best_cgp = deepcopy(new_cgp)
 				best_error = new_error
@@ -230,6 +245,8 @@ def es(f_vals, pnts, dims, nr_of_funcs, nr_of_nodes, error_func, op_table, max_i
 		if current_error < best_error:
 			new_pars = children_pars[best_children_idx]
 			print("best yet:", current_error)
+
+			write_2_file(new_pars, current_error, 'es',current_cgp.convert2str(parameters=new_pars))
 			current_cgp.print_function(parameters=new_pars)
 			best_cgp = deepcopy(current_cgp)
 			best_error = current_error
